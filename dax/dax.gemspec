@@ -6,10 +6,10 @@ require 'dax/version'
 Gem::Specification.new do |spec|
   spec.name          = "dax"
   spec.version       = Dax::VERSION
-  spec.authors       = ["James"]
+  spec.authors       = ["James N. Hart"]
   spec.email         = ["beeblebrox42@gmail.com"]
-  spec.summary       = %q{TODO: Write a short summary. Required.}
-  spec.description   = %q{TODO: Write a longer description. Optional.}
+  spec.summary       = %q{Utility for syncing with remote digital downloads.}
+  spec.description   = spec.summary
   spec.homepage      = ""
   spec.license       = "MIT"
 
