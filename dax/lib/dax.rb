@@ -7,20 +7,32 @@ module Dax
   
   def self.add_dir(path, db)
     Dir.foreach path do |name|
-      next if name == "." || name == ".."
-      rname = File.realdirpath name
+      next if name == "." 
+      next if name == ".."
+      rname = nil
+      begin
+        rname = File.expand_path name, path 
+      rescue => e
+        puts e.message
+        next
+      end
+      next unless rname
       if Dir.exists? rname
         add_dir(rname, db)
         next
       end
-      next if ! File.readable? rname
-      File.open(rname, "r") do |file|
-        head = file.read((2^20) * 100)
-        next if !head
-        digest = Digest::SHA1.hexdigest head
-        db[:files] += [ { :name => rname, :sha => digest } ]
-      end
-      
+      next unless File.file? rname
+      puts rname
+      begin
+        File.open(rname, "r") do |file|
+          head = file.read((2^20) * 100)
+          next if !head
+          digest = Digest::SHA1.hexdigest head
+          db[:files] += [ { :name => rname, :sha => digest } ]
+        end
+      rescue => e
+       puts e        
+      end 
     end
     
   end
@@ -29,14 +41,13 @@ module Dax
      db = {}
      File.open(fname, "a+") do |file|
         begin
-            db = JSON.parse(file.read(), symbolize_names => true) 
+            db = JSON.parse(file.read(), :symbolize_names => true) 
         rescue => e
             puts e
             puts "Could not read database, creating a new one."
             db =  { :lastmodified => DateTime.now.rfc3339, :files => [ ] }
         end
      end
-     self.add_dir(".", db)
      db
   end
   
