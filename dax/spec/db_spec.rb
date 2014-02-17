@@ -51,12 +51,10 @@ describe DB do
   it "detects differences" do
     dbFile = (@with_db + 'db').to_s
     db = DB.new :db_location => dbFile, :files_location => @with_set1.to_s
-    db.init
     db.refresh
   
     dbFile2 = (@with_db + 'db2').to_s
     db2 = DB.new :db_location => dbFile2, :files_location => @with_set2.to_s
-    db2.init
     db2.refresh
     result1 = db.additional_compared_to db2
     expect(result1.length).to eq 2

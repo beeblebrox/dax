@@ -21,10 +21,12 @@ class DB
   end
 
   def refresh
+    init
     refresh_db
   end
   
   def save
+    init
     save_db  
   end
   
