@@ -58,7 +58,10 @@ describe DB do
     db2 = DB.new :db_location => dbFile2, :files_location => @with_set2.to_s
     db2.init
     db2.refresh
-  
-    p db.additional_compared_to db2
+    result1 = db.additional_compared_to db2
+    expect(result1.length).to eq 2
+    expect(result1).to set_contain_file_named "b"
+    expect(result1).to set_contain_file_named "changed"
+    
   end
 end
