@@ -25,8 +25,10 @@ class DB
     read_db
     @listener = Listen.to(@files_location) do |modified, added, removed|
       begin
+      puts "Entered listener"
         modified.each { |file| refresh_file file }
         added.each { |file| refresh_file file }
+      puts "Exited Listener"
       rescue
         puts $!.inspect, $@
       end
@@ -68,15 +70,25 @@ class DB
   end
   
   def refresh_file(aname)
+    puts "Refreshing file..#{aname}"
+    digest = "NA"
     File.open(aname, "r") do |file|
+      puts "Reading file..."
       head = file.read((2^20) * 100)
       next if !head
+      puts "Creating digest."
       digest = Digest::SHA1.hexdigest head
+      puts "Digest created."
     end
     result = nil
-    curdir = Pathanme.new(@files_location).expand_path
-    name = Pathname.new(rname).relative_path_from(curdir)
+    puts "Creating curdir"
+    curdir = Pathname.new(@files_location).expand_path
+    puts "Making relative directory with: #{curdir} and #{aname}"    
+    name = Pathname.new(aname).relative_path_from(curdir).to_s
+    puts "Derived #{name}"
+     puts "Doing index search"
     @db[:files].index do |hash|
+      puts "Checking hash."
       if hash[:name] == name
         result = hash
         true
@@ -87,12 +99,16 @@ class DB
     
     if result
       # Already exists, refresh
+      puts "Refreshing existing result."
       result[:sha] = digest 
+      puts "Assigned new digest."
     else
+      puts "Adding new entry."
       #new entry
       @db[:files] += [ { :name => name,
                          :sha => digest } ]
-    end      
+    end
+    puts "Exiting refresh_file"
   rescue
     puts $!.inspect, $@
   end 

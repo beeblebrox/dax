@@ -71,7 +71,7 @@ describe DB do
   end
   end
 
-  it "detects modifications", :broken => true do
+  it "detects modifications", :broken => false do
     begin
       dbFile = (@with_db + 'db').to_s
       db = DB.new :db_location => dbFile, :files_location => @with_set1.to_s
