@@ -104,7 +104,6 @@ describe DB do
       expect(result2).to set_contain_file_named "e"
       expect(changedSHATo).not_to eq changedSHA
     ensure
-      puts "Cleaning up test."
       db.cleanup if db
     end
   end

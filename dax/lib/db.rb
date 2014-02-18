@@ -6,11 +6,14 @@ require "date"
 require "digest/sha1"
 require 'set'
 require 'pathname'
+require 'logger'
 
 require 'listen'
 
-class DB
+class DB < Logger::Application
   def initialize(options=nil)
+    super("Dax::DB")
+    self.level = Logger::INFO
     raise ArgumentError, "Need :db_location and :files_location." unless options.respond_to? 'has_key?'
     raise ArgumentError, "Database location (:db_location) not provided." if ! options.has_key? :db_location
     raise ArgumentError, "Files location (:files_location) not provided." if ! options.has_key? :files_location
@@ -25,22 +28,22 @@ class DB
     read_db
     @listener = Listen.to(@files_location) do |modified, added, removed|
       begin
-      puts "Entered listener"
+      log DEBUG,  "Entered listener"
         modified.each { |file| refresh_file file }
         added.each { |file| refresh_file file }
-      puts "Exited Listener"
+      log DEBUG,  "Exited Listener"
       rescue
-        puts $!.inspect, $@
+        log DEBUG,  $!.inspect, $@
       end
     end
     @listener.start
-    puts "Started listener"
+    log DEBUG,  "Started listener"
   end
 
   def cleanup
     return unless @initialized
     @listener.stop
-    puts "Stopped listener."
+    log DEBUG,  "Stopped listener."
   end
   
   def refresh
@@ -70,25 +73,25 @@ class DB
   end
   
   def refresh_file(aname)
-    puts "Refreshing file..#{aname}"
+    log DEBUG,  "Refreshing file..#{aname}"
     digest = "NA"
     File.open(aname, "r") do |file|
-      puts "Reading file..."
+      log DEBUG,  "Reading file..."
       head = file.read((2^20) * 100)
       next if !head
-      puts "Creating digest."
+      log DEBUG,  "Creating digest."
       digest = Digest::SHA1.hexdigest head
-      puts "Digest created."
+      log DEBUG,  "Digest created."
     end
     result = nil
-    puts "Creating curdir"
+    log DEBUG,  "Creating curdir"
     curdir = Pathname.new(@files_location).expand_path
-    puts "Making relative directory with: #{curdir} and #{aname}"    
+    log DEBUG,  "Making relative directory with: #{curdir} and #{aname}"    
     name = Pathname.new(aname).relative_path_from(curdir).to_s
-    puts "Derived #{name}"
-     puts "Doing index search"
+    log DEBUG,  "Derived #{name}"
+     log DEBUG,  "Doing index search"
     @db[:files].index do |hash|
-      puts "Checking hash."
+      log DEBUG,  "Checking hash."
       if hash[:name] == name
         result = hash
         true
@@ -99,18 +102,18 @@ class DB
     
     if result
       # Already exists, refresh
-      puts "Refreshing existing result."
+      log DEBUG,  "Refreshing existing result."
       result[:sha] = digest 
-      puts "Assigned new digest."
+      log DEBUG,  "Assigned new digest."
     else
-      puts "Adding new entry."
+      log DEBUG,  "Adding new entry."
       #new entry
       @db[:files] += [ { :name => name,
                          :sha => digest } ]
     end
-    puts "Exiting refresh_file"
+    log DEBUG,  "Exiting refresh_file"
   rescue
-    puts $!.inspect, $@
+    log DEBUG,  $!.inspect, $@
   end 
 
   def add_dir(path, originalpath)
@@ -121,7 +124,7 @@ class DB
       begin
         rname = File.expand_path name, path 
       rescue
-        puts $!.inspect, $@
+        log DEBUG,  $!.inspect, $@
         next
       end
       next unless rname
@@ -142,7 +145,7 @@ class DB
                              :sha => digest } ]
         end
       rescue
-        puts $!.inspect, $@
+        log DEBUG,  $!.inspect, $@
       end 
     end
   end
@@ -155,7 +158,7 @@ class DB
       begin
           @db = JSON.parse(file.read(), :symbolize_names => true) 
       rescue
-        puts $!.inspect
+        log DEBUG,  $!.inspect
         @db =  { :lastmodified => DateTime.now.rfc3339, :files => [ ] }
       end
     end
@@ -167,8 +170,8 @@ class DB
       begin
         file.write(JSON.pretty_generate ( @db ) )
       rescue
-        puts $!.inspect
-        puts "Could not save database!"
+        log DEBUG,  $!.inspect
+        log DEBUG,  "Could not save database!"
       end
     end
   end
