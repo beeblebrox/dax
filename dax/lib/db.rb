@@ -1,9 +1,13 @@
+require 'rubygems'
+require 'bundler/setup'
+
 require "json"
 require "date"
 require "digest/sha1"
-
 require 'set'
 require 'pathname'
+
+require 'listen'
 
 class DB
   def initialize(options=nil)
@@ -18,6 +22,11 @@ class DB
   def init
     return if @initialized
     read_db
+    @listener = Listen.to(@files_location) do |modified, added, removed|
+      modified.each do |file|; refresh_file file; end
+      added.each do |file|; refresh_file file; end
+    end
+    @listener.start
   end
 
   def refresh
@@ -46,6 +55,38 @@ class DB
    @db = { :lastmodified => DateTime.now.rfc3339, :files => [ ] }
    add_dir @files_location, Pathname.new(@files_location).realpath
   end
+  
+  def refresh_file(aname)
+    File.open(aname, "r") do |file|
+      head = file.read((2^20) * 100)
+      next if !head
+      digest = Digest::SHA1.hexdigest head
+    end
+    result = nil
+    @db[:files].index do |hash|
+      if hash[:aname] == aname
+        result = hash[:aname]
+        true
+      else
+        false
+      end
+    end
+    
+    if result
+      # Already exists, refresh
+      result[:sha] = digest 
+    else
+      #new entry
+      rpath = Pathname.new(aname)
+      rpath = rpath.relative_path_from(@files_location).to_s
+      @db[:files] += [ { :name => rpath,
+                         :aname => aname,
+                         :sha => digest } ]
+    end      
+  rescue => e
+   puts e.backtrace
+   puts e        
+  end 
 
   def add_dir(path, originalpath)
     Dir.foreach path do |name|
@@ -72,7 +113,9 @@ class DB
           head = file.read((2^20) * 100)
           next if !head
           digest = Digest::SHA1.hexdigest head
-          @db[:files] += [ { :name => rpath, :sha => digest } ]
+          @db[:files] += [ { :name => rpath,
+                             :aname => rname,
+                             :sha => digest } ]
         end
       rescue => e
        puts e        
