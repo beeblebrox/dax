@@ -21,14 +21,26 @@ class DB
   
   def init
     return if @initialized
+    @initialized = true
     read_db
     @listener = Listen.to(@files_location) do |modified, added, removed|
-      modified.each do |file|; refresh_file file; end
-      added.each do |file|; refresh_file file; end
+      begin
+        modified.each { |file| refresh_file file }
+        added.each { |file| refresh_file file }
+      rescue
+        puts $!.inspect, $@
+      end
     end
     @listener.start
+    puts "Started listener"
   end
 
+  def cleanup
+    return unless @initialized
+    @listener.stop
+    puts "Stopped listener."
+  end
+  
   def refresh
     init
     refresh_db
@@ -41,8 +53,7 @@ class DB
   
   def additional_compared_to (db)
     set1 = @db[:files].to_set
-    set1.subtract(db.files)
-    set1
+    set1.subtract(db.files.to_set)
   end
   
   def files
@@ -63,9 +74,11 @@ class DB
       digest = Digest::SHA1.hexdigest head
     end
     result = nil
+    curdir = Pathanme.new(@files_location).expand_path
+    name = Pathname.new(rname).relative_path_from(curdir)
     @db[:files].index do |hash|
-      if hash[:aname] == aname
-        result = hash[:aname]
+      if hash[:name] == name
+        result = hash
         true
       else
         false
@@ -77,15 +90,11 @@ class DB
       result[:sha] = digest 
     else
       #new entry
-      rpath = Pathname.new(aname)
-      rpath = rpath.relative_path_from(@files_location).to_s
-      @db[:files] += [ { :name => rpath,
-                         :aname => aname,
+      @db[:files] += [ { :name => name,
                          :sha => digest } ]
     end      
-  rescue => e
-   puts e.backtrace
-   puts e        
+  rescue
+    puts $!.inspect, $@
   end 
 
   def add_dir(path, originalpath)
@@ -95,8 +104,8 @@ class DB
       rname = nil
       begin
         rname = File.expand_path name, path 
-      rescue => e
-        puts e.message
+      rescue
+        puts $!.inspect, $@
         next
       end
       next unless rname
@@ -114,11 +123,10 @@ class DB
           next if !head
           digest = Digest::SHA1.hexdigest head
           @db[:files] += [ { :name => rpath,
-                             :aname => rname,
                              :sha => digest } ]
         end
-      rescue => e
-       puts e        
+      rescue
+        puts $!.inspect, $@
       end 
     end
   end
@@ -130,10 +138,9 @@ class DB
     File.open(fname, "a+") do |file|
       begin
           @db = JSON.parse(file.read(), :symbolize_names => true) 
-      rescue => e
-          puts e
-          puts "Could not read database, creating a new one."
-          @db =  { :lastmodified => DateTime.now.rfc3339, :files => [ ] }
+      rescue
+        puts $!.inspect
+        @db =  { :lastmodified => DateTime.now.rfc3339, :files => [ ] }
       end
     end
   end
@@ -143,8 +150,8 @@ class DB
     File.open(fname, "w") do |file|
       begin
         file.write(JSON.pretty_generate ( @db ) )
-      rescue => e
-        puts e
+      rescue
+        puts $!.inspect
         puts "Could not save database!"
       end
     end

@@ -9,7 +9,7 @@ describe DB do
     common_set = [ :name => "a", :data => "aaaaaaaaa" ] +
                  [ :name => "c", :data => "ccccccccc" ]
     @set_1 =     [ :name => "b", :data => "bbbbbbbbb" ] +
-                 [ :name => "changed", :data => "first"]
+                 [ :name => "changed", :data => "first"] +
                 common_set
                  [ :name => "changed", :data => "first" ]
     @set_2 =      [ :name => "d", :data => "dddddddd" ] +
@@ -41,14 +41,19 @@ describe DB do
   end
   
   it "#init create DB" do
+  begin
     dbFile = (@with_db + 'db').to_s
     expect(File).not_to exist(dbFile)
     db = DB.new :db_location => dbFile, :files_location => @with_set1.to_s
     db.init
     expect(File).to exist(dbFile)
+  ensure
+    db.cleanup if db
+  end
   end
   
-  it "detects differences" do
+  it "finds differences" do
+  begin
     dbFile = (@with_db + 'db').to_s
     db = DB.new :db_location => dbFile, :files_location => @with_set1.to_s
     db.refresh
@@ -60,6 +65,47 @@ describe DB do
     expect(result1.length).to eq 2
     expect(result1).to set_contain_file_named "b"
     expect(result1).to set_contain_file_named "changed"
-    
+  ensure 
+    db.cleanup if db
+    db2.cleanup if db2
+  end
+  end
+
+  it "detects modifications", :broken => true do
+    begin
+      dbFile = (@with_db + 'db').to_s
+      db = DB.new :db_location => dbFile, :files_location => @with_set1.to_s
+      db.refresh
+      result1 = db.files
+      expect(result1.length).to eq 4
+      expect(result1).to set_contain_file_named "a"
+      expect(result1).to set_contain_file_named "b"
+      expect(result1).to set_contain_file_named "c"
+      expect(result1).to set_contain_file_named "changed"
+      changedSHA = nil
+      result1.each do |file|
+        changedSHA = file[:sha] if file[:name] == "changed"
+      end
+      expect(changedSHA).to be
+      
+      File.open((@with_set1 + "e").to_s, "w") do |file|
+        file.puts "eeeeeeee"
+      end
+      
+      File.open((@with_set1 + "changed").to_s, "w") do |file|
+        file.puts "youbetchya"
+      end
+      sleep 1
+      changedSHATo = nil
+      result2 = db.files
+      result2.each do |file|
+        changedSHATo = file[:sha] if file[:name] == "changed"
+      end
+      expect(result2).to set_contain_file_named "e"
+      expect(changedSHATo).not_to eq changedSHA
+    ensure
+      puts "Cleaning up test."
+      db.cleanup if db
+    end
   end
 end
