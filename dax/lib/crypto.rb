@@ -11,6 +11,7 @@ module Crypto
     aes.encrypt
     aes.key = key
     iv = aes.random_iv
+    encrypted_data = aes.update(message) + aes.final
     encrypted_data = iv + encrypted_data
   end
 
