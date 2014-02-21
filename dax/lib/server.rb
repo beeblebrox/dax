@@ -18,25 +18,28 @@ class Server < Logger::Application
     @db = options[:db]
     @listen = options[:listen]
     @key = options[:key]
-
     @zmq = ZMQ::Context.new(50)
     @socket = @zmq.socket(ZMQ::REP)
     @socket.bind(@listen)
     Thread::abort_on_exception = true
+
     @zthread = Thread.new do
       server_loop
     end
   end
 
   def cleanup
+    raise @error if @error
+    @shutdown = true
+    @zthread.join
   end
 
   def context
     @zmq
   end
 
-  def error_check(rc)
-    if ZMQ::Util.resultcode_ok?(rc) || ZMQ::Util.errno ==  ZMQ::EAGAIN
+  def error_check(rc, errno)
+    if ZMQ::Util.resultcode_ok?(rc) || errno ==  ZMQ::EAGAIN
       false
     else
       log ERROR, "Operation failed, errno [#{ZMQ::Util.errno}] description [#{ZMQ::Util.error_string}]"
@@ -51,16 +54,22 @@ class Server < Logger::Application
     @socket.setsockopt(ZMQ::RCVTIMEO, 1000)
     until @shutdown
       msg = ''
+      rc = 0
+      errno = 0
       begin 
         rc = @socket.recv_string msg
         log DEBUG, "Received: #{msg}" unless rc < 0
+        errno = ZMQ::Util.errno
         break if @shutdown
-      end while rc < 0 && ZMQ::Util.errno == ZMQ::EAGAIN
-      raise "Could not receive message." if error_check(rc)
+      end while rc < 0 && errno == ZMQ::EAGAIN
+      break if @shutdown
+      raise "Could not receive message." if error_check(rc, errno)
       rc = @socket.send_string msg
-      raise "Could not send message." if error_check(rc)
+      errno = ZMQ::Util.errno
+      raise "Could not send message." if error_check(rc, errno)
     end
     rescue
-      log FATAL, "Error while running server, shutting down. (#{$!.inspect})"
+      @error = "Error while running server, shutting down. (#{$!.inspect})"
+      log FATAL, @error
   end
 end
