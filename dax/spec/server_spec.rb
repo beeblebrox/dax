@@ -8,6 +8,8 @@ describe Server do
       s = Server.new :db => nil, :listen => "tcp://*:4242", :key => nil
       zmq = ZMQ::Context.new
       socket = zmq.socket(ZMQ::REQ)
+      socket.setsockopt(ZMQ::RCVTIMEO, 1000)
+      socket.setsockopt(ZMQ::SNDTIMEO, 1000)
       socket.connect  "tcp://127.0.0.1:4242"
       socket.send_string "yomammy"
       msg = ''
