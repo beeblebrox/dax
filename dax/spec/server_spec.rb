@@ -96,4 +96,34 @@ describe Server do
     # server is actually running, we just attempt to end the test without doing anything.
   end
 
+  it "can inject missing" do
+    @s.missing_cmd do
+      "missing_hit"
+    end
+    @socket.send_string '{ "op": "any", "params": "nothing" }'
+    msg = ''
+    rc = @socket.recv_string msg
+    expect(ZMQ::Util.resultcode_ok?(rc)).to be
+    expect(msg).to have_json_result("missing_hit")
+  end
+  
+  it "errors with missing" do
+    @s.missing_cmd = nil
+    @socket.send_string '{ "op": "missing", "params": "nothing" }'
+    msg = ''
+    rc = @socket.recv_string msg
+    expect(ZMQ::Util.resultcode_ok?(rc)).to be
+    expect(msg).to have_json_error("I don't understand missing")
+  end
+
+  it "can define command" do
+    @s.handle "reverse" do |msg|
+      msg.reverse
+    end
+    @socket.send_string '{ "op": "reverse", "params": "reverse me" }'
+    msg = ''
+    rc = @socket.recv_string msg
+    expect(ZMQ::Util.resultcode_ok?(rc)).to be
+    expect(msg).to have_json_result("reverse me".reverse)
+  end
 end

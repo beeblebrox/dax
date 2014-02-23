@@ -8,6 +8,7 @@ require 'logger'
 require 'ffi-rzmq'
 
 class Server < Logger::Application
+
   def initialize(options=nil)
     super("Dax::Server")
     self.level = Logger::INFO
@@ -31,7 +32,18 @@ class Server < Logger::Application
       server_loop
     end
   end
-
+  
+  def missing_cmd(&block)
+    @missing_cmd = block  
+  end
+  
+  def missing_cmd=(*args, &block)
+    @missing_cmd = block
+    raise ArgumentError, "Must provide block or nil parameter" if args.length == 0
+    raise ArgumentError, "Must provide block or nil parameter" if args[0]
+    @missing_cmd = nil
+  end
+  
   def key=(aes_key)
     @key = aes_key
   end
@@ -99,8 +111,9 @@ class Server < Logger::Application
   end
   
   def send_error msg
-    msg = JSON.generate(msg, :quirks_mode => true)
-    snd "{ \"error\": \"#{msg}\" }"
+    error = { :error => msg }
+    msg = JSON.generate(error)
+    snd msg
   end
   
   def server_loop
@@ -144,7 +157,7 @@ class Server < Logger::Application
           next
         end
       rescue
-       log WARN "Never expect to catchall: #{$!.inspect}"
+       log WARN, "Never expect to catchall: #{$!.inspect}"
       end
     end
   rescue

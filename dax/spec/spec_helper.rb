@@ -23,3 +23,11 @@ RSpec::Matchers.define :have_json_result do |value|
     result[:result] == value
   end
 end
+
+RSpec::Matchers.define :have_json_error do |value|
+  match do |json|
+    result = JSON.parse(json, :symbolize_names => true)
+    false unless result.has_key? :error
+    result[:error] == value
+  end
+end
