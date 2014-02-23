@@ -21,6 +21,10 @@ class Server < Logger::Application
     @zmq = ZMQ::Context.new(1)
     @socket = @zmq.socket(ZMQ::REP)
     @socket.bind(@listen)
+    @socket.setsockopt(ZMQ::LINGER, 0)
+    @socket.setsockopt(ZMQ::RCVTIMEO, 1000)
+    @socket.setsockopt(ZMQ::SNDTIMEO, 1000)
+
     Thread::abort_on_exception = true
 
     @zthread = Thread.new do
@@ -68,29 +72,40 @@ class Server < Logger::Application
   
   private
 
-  def server_loop
-    @socket.setsockopt(ZMQ::LINGER, 0)
-    @socket.setsockopt(ZMQ::RCVTIMEO, 1000)
-    until @shutdown
-      msg = ''
-      rc = 0
-      errno = 0
-      begin 
-        rc = @socket.recv_string msg
-        errno = ZMQ::Util.errno
-        log DEBUG, "Received: #{msg}" unless rc < 0
-        break if @shutdown
-      end while rc < 0 && errno == ZMQ::EAGAIN
-      break if @shutdown
-      raise "Could not receive message." if error_check(rc, errno)
-      msg = Crypto.decrypt(@key, msg) if @key
-      msg = Crypto.encrypt(@key, msg) if @key
-      rc = @socket.send_string msg
+  def snd(msg)
+    msg = Crypto.encrypt(@key, msg) if @key
+    rc = @socket.send_string msg
+    errno = ZMQ::Util.errno
+    raise "Could not send message." if error_check(rc, errno)
+  end
+
+  def rcv
+    msg = ''
+    begin 
+      rc = @socket.recv_string msg
       errno = ZMQ::Util.errno
-      raise "Could not send message." if error_check(rc, errno)
+      log DEBUG, "Received: #{msg}" unless rc < 0
+      return if @shutdown
+    end while rc < 0 && errno == ZMQ::EAGAIN
+    return if @shutdown
+    raise "Could not receive message." if error_check(rc, errno)
+    msg = Crypto.decrypt(@key, msg) if @key
+    msg
+  end
+  
+  def server_loop
+    until @shutdown
+      begin
+        msg = rcv
+        return if @shutdown
+        #JSON.parse(msg, :symbolize_names => true) 
+        snd msg
+      rescue
+      end
     end
     rescue
       @error = "Error while running server, shutting down. (#{$!.inspect})"
       log FATAL, @error
+    ensure
   end
 end
