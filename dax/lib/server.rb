@@ -24,7 +24,7 @@ class Server < Logger::Application
     @socket.setsockopt(ZMQ::LINGER, 0)
     @socket.setsockopt(ZMQ::RCVTIMEO, 1000)
     @socket.setsockopt(ZMQ::SNDTIMEO, 1000)
-
+    @missing_cmd = (options.has_key? :missing_cmd) ? options[:missing_cmd] : nil
     Thread::abort_on_exception = true
 
     @zthread = Thread.new do
@@ -32,6 +32,10 @@ class Server < Logger::Application
     end
   end
 
+  def key=(aes_key)
+    @key = aes_key
+  end
+  
   def handle(command, &block)
       @commands ||= { }
       cmd = command?(command)
@@ -39,8 +43,9 @@ class Server < Logger::Application
   end
   
   def command?(command)
+    return nil unless @commands
     sym = command.to_sym
-    ret = @commands.has_key?(sym)  ? @commands[sym] : false
+    ret = @commands.has_key?(sym)  ? @commands[sym] : nil
   end
   
   def invoke(command, data)
@@ -93,19 +98,57 @@ class Server < Logger::Application
     msg
   end
   
+  def send_error msg
+    msg = JSON.generate(msg, :quirks_mode => true)
+    snd "{ \"error\": \"#{msg}\" }"
+  end
+  
   def server_loop
+    cnt = 0
     until @shutdown
+      cnt = cnt + 1
       begin
-        msg = rcv
+        begin
+          msg = rcv
+        rescue
+          log ERROR, "#{cnt} - #{$!.inspect}"
+          return
+        end
         return if @shutdown
-        #JSON.parse(msg, :symbolize_names => true) 
-        snd msg
+        begin
+          msg = JSON.parse(msg, :symbolize_names => true)
+        rescue 
+          send_error $!.inspect
+          next
+        end
+        op = command? msg[:op] if msg
+        params = msg[:params] rescue params = nil
+        if op
+          begin
+            result = op.call params
+            snd JSON.generate(:result => result)
+          rescue
+            send_error "#{$!.inspect}" unless @shutdown
+            next
+          end
+        elsif @missing_cmd
+          begin
+            result = @missing_cmd.call params
+            snd JSON.generate(:result => result)
+          rescue
+            send_error "#{$!.inspect}" unless @shutdown
+            next
+          end
+        else
+          send_error "I don't understand #{msg[:op]}" unless @shutdown
+          next
+        end
       rescue
+       log WARN "Never expect to catchall: #{$!.inspect}"
       end
     end
-    rescue
-      @error = "Error while running server, shutting down. (#{$!.inspect})"
-      log FATAL, @error
-    ensure
+  rescue
+    @error = "Error while running server, shutting down. (#{$!.inspect})"
+    log FATAL, @error
   end
 end
