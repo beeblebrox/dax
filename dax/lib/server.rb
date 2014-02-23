@@ -28,6 +28,25 @@ class Server < Logger::Application
     end
   end
 
+  def handle(command, &block)
+      @commands ||= { }
+      cmd = command?(command)
+      @commands[command.to_sym] = block unless cmd
+  end
+  
+  def command?(command)
+    sym = command.to_sym
+    ret = @commands.has_key?(sym)  ? @commands[sym] : false
+  end
+  
+  def invoke(command, data)
+    return unless @commands
+    cmd = command?(command)
+    log WARN, "No command #{command}." unless cmd
+    return unless cmd
+    cmd.call data
+  end
+  
   def cleanup
     @shutdown = true
     raise @error if @error

@@ -1,6 +1,34 @@
 require 'spec_helper'
 require 'ffi-rzmq'
 
+describe "server api" do
+  
+  before :each do
+    @server = Server.new :db => nil, :listen => "tcp://*:1234", :key => nil
+  end
+  
+  after :each do
+    @server.cleanup
+  end
+  
+  it "can add single command" do
+    @server.handle "poke" do |data|
+      "poke #{data}"
+    end
+    cmd = @server.command? "poke"
+    expect(cmd).to be
+    expect(cmd.call "face").to eq "poke face"
+  end
+  
+  it "can invoke added command" do
+    @server.handle "poke" do |data|
+      "poke #{data}"
+    end
+    expect(@server.invoke("poke", "face")).to eq "poke face"
+  end
+
+end
+
 describe Server do
 
   it "creates zmq server" do
