@@ -42,7 +42,7 @@ class DB < Logger::Application
 
   def cleanup
     return unless @initialized
-    @listener.stop
+    @listener.stop if @listener
     log DEBUG,  "Stopped listener."
   end
   
@@ -63,6 +63,19 @@ class DB < Logger::Application
   
   def files
     @db[:files]  
+  end
+  
+  def first_file_with_checksum(checksum)
+    # probably need to lock this
+    files = self.files.dup
+    result = files.select do |file| 
+      file[:sha] == checksum
+    end
+    result = result.sort_by do |file|
+      file[:name]
+    end
+    return nil if result.length == 0
+    return result[0]
   end
   
   private

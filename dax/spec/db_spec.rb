@@ -1,6 +1,47 @@
 require 'spec_helper'
 require 'pathname'
 
+describe "db#first_file_with_checksum" do
+
+  before do
+    @file_set = Pathname.new "tmp_set1"
+    @common_set = [ :name => "a", :data => "aaaaaaaaa" ] +
+                 [ :name => "a2", :data => "aaaaaaaaa" ] +
+                 [ :name => "c", :data => "ccccccccc" ]
+    @with_db = Pathname.new 'db_tmp'
+
+    `mkdir -p #{@file_set.to_s}`
+    `mkdir -p #{@with_db.to_s}`
+
+    @common_set.each do |finfo|
+      File.open(@file_set + finfo[:name], "w") do |file|
+        file.write finfo[:data]
+      end
+    end
+    
+  end
+
+  after do
+    `rm -rf #{@file_set.to_s}`
+    `rm -rf #{@with_db.to_s}`
+  end
+  
+  it "finds first" do
+  begin
+    dbFile = (@with_db + 'db').to_s
+    expect(File).not_to exist(dbFile)
+    db = DB.new :db_location => dbFile, :files_location => @file_set.to_s
+    db.refresh
+    expect(File).to exist(dbFile)
+    file = db.first_file_with_checksum Digest::SHA1.hexdigest "aaaaaaaaa"
+    expect(file).to be
+    expect(file[:name]).to eq "a"
+  ensure
+    db.cleanup if db
+  end
+  end
+end
+
 describe DB do
 
   before do
