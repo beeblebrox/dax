@@ -13,10 +13,8 @@ class Server < Logger::Application
     super("Dax::Server")
     self.level = Logger::INFO
     raise ArgumentError, "Need :db, :port, and :key" unless options.respond_to? 'has_key?'
-    raise ArgumentError, "db instance (:db) not provided." if ! options.has_key? :db
     raise ArgumentError, "Listen uri (:listen) not provided." if ! options.has_key? :listen
     raise ArgumentError, "AES key (:key) not provided." if ! options.has_key? :key
-    @db = options[:db]
     @listen = options[:listen]
     @key = options[:key]
     @zmq = ZMQ::Context.new(1)
