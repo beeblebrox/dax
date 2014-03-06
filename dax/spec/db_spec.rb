@@ -35,7 +35,7 @@ describe "db#first_file_with_checksum" do
     expect(File).to exist(dbFile)
     file = db.first_file_with_checksum Digest::SHA1.hexdigest "aaaaaaaaa"
     expect(file).to be
-    expect(file[:name]).to eq "a"
+    expect(file).to eq "a"
   ensure
     db.cleanup if db
   end
@@ -81,7 +81,24 @@ describe DB do
     `rm -rf #{@with_db.to_s}`
   end
   
-  it "#init create DB" do
+  it "#index is built" do
+  begin
+    dbFile = (@with_db + 'db').to_s
+    expect(File).not_to exist(dbFile)
+    db = DB.new :db_location => dbFile, :files_location => @with_set1.to_s
+    db.refresh
+    index = db.index
+    expect(index.length).to equal 4
+    expect(index["b7acc2e0e1aca6d4dc87b4ab23feef3345aabdb3"]).to eq "a"
+    expect(index["cb9a53cb2c69a9c1ca2e75281eec47e10c2b31c0"]).to eq "b"
+    expect(index["4dbcfd90eb72989411e4219d2d130184bf1554b3"]).to eq "c"
+    expect(index["271ac93c44ac198d92e706c6d6f1d84aefcfa337"]).to eq "changed"
+    
+  ensure
+    db.cleanup if db
+  end
+  end
+    it "#init create DB" do
   begin
     dbFile = (@with_db + 'db').to_s
     expect(File).not_to exist(dbFile)

@@ -20,6 +20,7 @@ class DB < Logger::Application
     @db_location = options[:db_location]
     @files_location = options[:files_location]
     @initialized = false
+    @dirty = false
   end
   
   def init
@@ -43,6 +44,7 @@ class DB < Logger::Application
   def cleanup
     return unless @initialized
     @listener.stop if @listener
+    save
     log DEBUG,  "Stopped listener."
   end
   
@@ -66,23 +68,34 @@ class DB < Logger::Application
   end
   
   def first_file_with_checksum(checksum)
-    # probably need to lock this
-    files = self.files.dup
-    result = files.select do |file| 
-      file[:sha] == checksum
-    end
-    result = result.sort_by do |file|
-      file[:name]
-    end
-    return nil if result.length == 0
-    return result[0]
+    idx = index()
+    nil unless idx.key? [checksum]
+    idx[checksum]
+  end
+  
+  def index
+    rebuild_index if @dirty
+    @index
   end
   
   private
 
+  def rebuild_index
+    @index = Hash.new
+    files = @db[:files].dup
+    files = files.sort_by do |file|
+      file[:name]
+    end
+    files.each do |info|
+      @index[info[:sha]] = info[:name] if ! @index.key? info[:sha]
+    end
+    @dirty = false
+  end
+  
   def refresh_db
    @db = { :lastmodified => DateTime.now.rfc3339, :files => [ ] }
    add_dir @files_location, Pathname.new(@files_location).realpath
+   @dirty = true
   end
   
   def refresh_file(aname)
@@ -124,6 +137,7 @@ class DB < Logger::Application
       @db[:files] += [ { :name => name,
                          :sha => digest } ]
     end
+    @dirty = true
     log DEBUG,  "Exiting refresh_file"
   rescue
     log DEBUG,  $!.inspect, $@
@@ -175,6 +189,7 @@ class DB < Logger::Application
         @db =  { :lastmodified => DateTime.now.rfc3339, :files => [ ] }
       end
     end
+    @dirty = true
   end
   
   def save_db
