@@ -18,6 +18,13 @@ def initialize(*args)
     raise ArgumentError "Must supply checksum." unless (md5 && md5.responds_to :to_s)
     md5 = md5.to_s
   end
+
+  @server.handle 'stat' do |msg|
+    raise ArgumentError "Must supply checksum." unless (msg && msg.responds_to :key?)
+    raise ArgumentError "Must supply sha." unless (msg.key? :sha)
+    sha = msg[:sha]
+    # TODO add lookup from db sha index and get stats
+  end
   
 end
   
